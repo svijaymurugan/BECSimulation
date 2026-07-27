@@ -32,3 +32,28 @@ Parameters dict:
 "tolerance": 1e-6,
 "init_type": "Gaussian",
 "device": "cuda" if torch.cuda.is_available() else "cpu"}
+
+Np: Number of particles
+m: mass
+a0: scattering length
+a02: scattering volume
+gamma: haarmoinc trap potential frequency scaling in z-direction (V(x,y,z) = x^2 + y^2 + gamma^2 * z^2)
+sigma: standard deviation of Gaussian initial state
+up: half box length
+N: Number of gridpoints along one dimension (so N^3 total gridpoitns)
+ev_time: Evolution Time
+time_steps: Number of simulation time steps
+cutoff: Type of cutoff: Hard cutoff, Soft cutoff (sigmoid), Cylindrical (2 hard cutoffs: one in xy-plane mangitude and one in z-direction), Manual (insert your own code)
+waist: Boolean to track waist value
+high_precision: False -> complex64, float32; True -> complex128, float64
+z_scale: scale standard deviation of Gaussian in z-direction
+y_scale: scale standard deviation of Gaussian in y-direction
+time_plots: Boolean to save intermdiate plots through simulation (time-dependent plots: XY/XZ densities, X/Y/Z slices)
+final_plots: Boolean to save summary plots: Energy vs time, initial densities
+plot_steps: frequency to save time plots
+Nz: gridpoints in z-direction (taken to be N if this None)
+imag_dtau: unitless time step for imaginary time evolution
+imag_max_steps: maximum number of time steps, at which point ITE stops even if not convergent
+tolerance: threshold that must be met for ITE to be considered as convergent
+init_type: specify type of initial state: Gaussian or Ground State 
+device: GPU vs CPU
