@@ -14,6 +14,8 @@ Parameters dict:
 "gamma": 1, 
 "sigma": 11e-6, 
 "up": 5.5e-5,
+"modulation freq": 2.0, #unitless freq
+"modulation amplitude": 0.1, #10% of potential
 "N": 100, 
 "ev_time": 1e-2,
 "time_steps": 100,
@@ -40,6 +42,8 @@ a02: scattering volume
 gamma: haarmoinc trap potential frequency scaling in z-direction (V(x,y,z) = x^2 + y^2 + gamma^2 * z^2)
 sigma: standard deviation of Gaussian initial state
 up: half box length
+modulation freq: frequency at which potential trap frequency is modulated: w(t) = w_0(1+Asin(w_dt)) (w_d is modulation freq)
+modulation amp: amplitude at which potential trap frequency is modulated: (A is modulation amp)
 N: Number of gridpoints along one dimension (so N^3 total gridpoitns)
 ev_time: Evolution Time
 time_steps: Number of simulation time steps
