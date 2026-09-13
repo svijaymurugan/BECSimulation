@@ -14,6 +14,9 @@ def _apply_terms(self, psi, half):
     W1 = self._total_field(psi_pred)               # field after a trial kick
     W = 0.5 * (W0 + W1)                            # trapezoid
     return psi * torch.exp(self.clip(self.phase * W * half))
+
+
+NOTE ON ADAPTIVE IMAGINARY TIME AT THE BOTTOM OF THIS SCRIPT
 """
 from __future__ import annotations
 
@@ -77,8 +80,6 @@ class Evolution(ABC):
 
             if measure:
                 self.recorder.record_energies(energies)
-                self.recorder.record_waist(psi)
-                self.recorder.record_frames(psi)
             
 
             for monitor in self.monitors:
@@ -90,6 +91,7 @@ class Evolution(ABC):
         self.steps_taken = i + 1
         return psi
 
+    #@torch.compile
     def step(self, psi, V, exp_V, exp_K, dtau, measure=True):
         """One symmetric split step. No branch on real vs imaginary anywhere:
         the difference is carried entirely by `self.phase`."""
@@ -99,17 +101,20 @@ class Evolution(ABC):
 
         if measure:
 
-            fields = [term.field(psi) for term in self.terms]
+            self.recorder.record_waist(psi)
+            self.recorder.record_frames(psi)
+
+            meas_fields = [term.field(psi) for term in self.terms]
 
             # --- measure (see finding 06 for why it happens HERE) ---
             density = torch.abs(psi)**2
             energies = {t.name: t.energy(f, density, grid.dV)
-                        for t, f in zip(self.terms, fields)}
+                        for t, f in zip(self.terms, meas_fields)}
             energies["potential"] = torch.sum(V * density) * grid.dV
 
             psi_k_meas = torch.fft.fftn(psi)
             energies["kinetic"] = (torch.sum(self.KE * torch.abs(psi_k_meas)**2)
-                                * grid.dV / self.ke_divisor)  # Phase B seam - see finding 04
+                                * grid.dV / self.ke_divisor)  
 
             # Sum in the original's order: ((KE + pot) + g0) + g2.
             # Float addition is not associative; see Part 0.
@@ -120,6 +125,8 @@ class Evolution(ABC):
 
         # --- first half step in position space ---
         psi = psi * exp_V
+
+        fields = [term.field(psi) for term in self.terms]
         psi = self._apply_terms(psi, fields, half)
 
         # --- full step in momentum space ---
@@ -166,6 +173,8 @@ class ImaginaryTimeEvolution(Evolution):
         self._previous_energy = float("inf")
         self.converged = False
 
+        assert self.check_every % self.measure_every == 0, "check_every must be a multiple of measure_every"
+
     # --- difference 1: the exponent is a real decay, so it can overflow ---
     def clip(self, exponent):
         return torch.clip(exponent, min=-50, max=50)
@@ -187,3 +196,55 @@ class ImaginaryTimeEvolution(Evolution):
             return True
         self._previous_energy = current
         return False
+
+
+"""
+Note on imaginary-time step size
+--------------------------------
+`imag_dtau` is fixed for the whole ITE run. Two known limitations, both
+understood and deliberately not addressed:
+
+1. First-order accuracy in the nonlinear term. The interaction field
+   G0|psi|^2 is frozen at the start of each half-kick. In real time the kick
+   is a pure phase, so |psi|^2 is genuinely constant during the sub-step and
+   the scheme stays second order. In imaginary time the kick is a real decay,
+   |psi|^2 changes during the sub-step, and the frozen field is wrong by
+   O(dtau). Measured: virial residual/V scales as 5.78e-2 -> 2.87e-2 ->
+   1.43e-2 -> 7.14e-3 as dtau halves from 5e-3 (ratio 2.0, first order),
+   against ratios of 4.0 for real-time energy drift.
+
+   Remedy if needed: predictor-corrector on the field only, in imaginary
+   time only --
+       W0 = total_field(psi)
+       psi_pred = psi * exp(phase * W0 * half)
+       W  = 0.5 * (W0 + total_field(psi_pred))
+       psi = psi * exp(phase * W * half)
+   Cost: the interaction field is evaluated twice per half-kick. Cheap for
+   the contact term, two extra FFT pairs for the quadrupole term. Buys
+   second-order convergence, so a ~10x larger dtau for the same accuracy --
+   usually a net win once step count dominates.
+
+2. No adaptation. High-energy components decay fast; the slow part is
+   separating the ground state from the lowest excited states, so a step
+   size that is right at the start is conservative later.
+
+   Simplest useful scheme, decided at convergence checks (never per step):
+   monitor the energy at each check; if it RISES, dtau was too large --
+   halve it and rebuild exp_K and exp_V. If the relative change has been
+   below some threshold for several consecutive checks, multiply dtau by
+   ~1.5 up to a ceiling. Both actions require rebuilding the cached
+   exponentials, which is why they belong at check boundaries and not in
+   the hot loop.
+
+   Two caveats before implementing:
+     - `imag_dtau` is part of GROUND_STATE_FIELDS, so it feeds the cache
+       hash. With an adaptive schedule the stored dtau no longer identifies
+       the computation; hash the initial dtau AND the adaptation rule, or
+       the cache will report matches that are not matches.
+     - Cheaper alternative that needs no loop changes at all: run ITE twice,
+       coarse dtau to near-convergence then fine dtau to refine. Two fixed-
+       dtau runs chained. Try this before building adaptivity.
+
+   Not currently worth it: ITE converges in seconds at test grid sizes and
+   runs once per unique config thanks to the ground-state cache.
+"""

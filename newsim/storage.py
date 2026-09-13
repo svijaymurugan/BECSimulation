@@ -88,9 +88,6 @@ def save_run(directory, cfg, grid, recorder, *, description="",psi_initial=None,
     if kx is not None:
         arrays["kx_amplitudes"] = kx.astype(np.float32)
         arrays["kz_amplitudes"] = kz.astype(np.float32)
-        # in save_run
-        arrays["kx_axis"] = torch.fft.fftshift(grid.kx3.flatten()).cpu().numpy()
-        arrays["kz_axis"] = torch.fft.fftshift(grid.kz3.flatten()).cpu().numpy()
 
     waist = recorder.waist()
     if waist is not None:
@@ -101,9 +98,6 @@ def save_run(directory, cfg, grid, recorder, *, description="",psi_initial=None,
     if psi_final is not None:
         arrays["psi_final"] = np.asarray(psi_final)
 
-    frames = recorder.frames()
-    if frames is not None:
-        arrays["frames"] = np.array(frames, dtype=np.float32)
     if extras:
         arrays.update(extras)
 

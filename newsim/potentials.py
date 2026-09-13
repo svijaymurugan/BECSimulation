@@ -51,7 +51,12 @@ class ModulatedHarmonicTrap(Potential):
         return self.inner(t) * (1.0 + self.amp * math.sin(self.freq * t))**2
 
 class BoxPotential(Potential):
-    """A box potential with hard walls at |x|, |y|, |z| = L/2."""
+    """A box potential with hard walls at |x|, |y|, |z| = L/2.
+    
+    TODO: BoxPotential is broken: self._V[grid.ux3.abs() > 0.5] = inf indexes a (N,N,nz) tensor with an (N,1,1) mask, 
+    and inf in the exponent gives NaN. Build it by broadcasting and use a large finite wall, or delete it — nothing constructs it.
+    
+    """
 
     def __init__(self, grid):
         self._V = torch.zeros(grid.shape, dtype=grid.real_dtype, device=grid.device)

@@ -21,14 +21,21 @@ class Recorder:
     def __init__(self, term_names, measure_every=1, dt = None, track_modes=True, radius_squared=None, dV=None, track_frames=True):
         self.columns = ["kinetic", "potential", *term_names, "total"]
         self.track_modes = track_modes
-        self.measure_every = measure_every
+        self.measure_every, self.track_frames = measure_every, track_frames
         self.dt = dt
         self._rows = []
-        self._frames_xy, self._frames_xz = [], [] if track_frames else None
-        self.track_frames = track_frames
+        self._frames_xy, self._frames_xz = [], []
         self._kx, self._kz = [], []
         self._waist = []
         self._r2, self._dV = radius_squared, dV
+
+    @classmethod
+    def energies_only(cls, term_names, **kwargs):
+        """Energies and nothing else. The right Recorder for imaginary time:
+        ITE only needs the total for its convergence check, and a movie of a
+        ground-state search is not something anyone wants."""
+        return cls(term_names, track_modes=False, track_frames=False,
+                   radius_squared=None, **kwargs)
 
     def record_energies(self, energies):
         self._rows.append(
@@ -76,8 +83,8 @@ class Recorder:
         if not self.track_frames:
             return
         rho = torch.abs(psi)**2
-        self._frames_xy.append(torch.sum(rho, dim=2).detach())   # integrate out z
-        self._frames_xz.append(torch.sum(rho, dim=1).detach())   # integrate out y
+        self._frames_xy.append(torch.sum(rho, dim=2).detach().to(torch.float32))   # integrate out z
+        self._frames_xz.append(torch.sum(rho, dim=1).detach().to(torch.float32))   # integrate out y
 
     def frames(self):
         if not self._frames_xy:

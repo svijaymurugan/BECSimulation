@@ -3,6 +3,7 @@ import math
 
 import numpy as np
 import torch
+from pathlib import Path
 
 import torch
 from config import SimulationConfig 
@@ -41,15 +42,14 @@ def build(cfg, kind="real", device="cpu"):
     cutoff = make_cutoff(cfg, grid)
     terms  = make_terms(cfg, grid, cutoff)
     rec    = Recorder([t.name for t in terms], track_modes=False)
-    common = dict(recorder=rec, ke_divisor=grid.n_points)   # post-fix-04
     if kind == "real":
         ev = RealTimeEvolution(grid, make_potential(cfg, grid, cfg.gamma), terms,
-                               dtau=cfg.dtau, max_steps=cfg.time_steps, **common)
+                               dtau=cfg.dtau, max_steps=cfg.time_steps, recorder=rec)
     else:
         ev = ImaginaryTimeEvolution(grid, make_potential(cfg, grid, cfg.imag_gamma),
                                     terms, dtau=cfg.imag_dtau,
                                     max_steps=cfg.imag_max_steps,
-                                    tolerance=cfg.tolerance, **common)
+                                    tolerance=cfg.tolerance, recorder=rec)
     return grid, ev, rec
 
 
@@ -152,6 +152,9 @@ def test_virial_relation_noninteracting():
     trap = e[cols.index("potential")]
     assert abs(2*kin - 2*trap) / abs(trap) < 1e-5
 
+
+
+'''
 cfg = small(include_g0=True, include_g2=False, a02=0.0, up=2.0e-5, N=64)
 grid, ev, rec = build(cfg, "imag")
 psi = ev.run(grid.gaussian().to(grid.device))
@@ -177,4 +180,4 @@ for dtau in (5e-3, 2.5e-3, 1.25e-3, 6.25e-4):
     ev.run(grid.gaussian().to(grid.device))
     e, c = rec.energies()[-1], rec.columns
     K, V, I = (e[c.index(n)] for n in ("kinetic", "potential", "g0 (contact)"))
-    print(f"dtau={dtau:.2e}  K={K:.6f}  residual/V={abs(2*K-2*V+3*I)/V:.3e}")
+    print(f"dtau={dtau:.2e}  K={K:.6f}  residual/V={abs(2*K-2*V+3*I)/V:.3e}")'''

@@ -126,7 +126,7 @@ def save_set(figs: dict, directory, *, dpi=300, close=True):
 
 
 
-def animate_density(frames, xmesh, ymesh, times, *, path, title="",fps=20,
+def animate_density(frames, xmesh, ymesh, times, *, path, x_label ="",y_label ="",title="",fps=20,
                     log=False, cmap="magma"):
     """Write a GIF from recorded density frames. Needs pillow."""
     from matplotlib.animation import FuncAnimation
@@ -138,7 +138,7 @@ def animate_density(frames, xmesh, ymesh, times, *, path, title="",fps=20,
 
     fig, ax = plt.subplots()
     im = ax.pcolormesh(xmesh, ymesh, frames[0], norm=norm, cmap=cmap, shading="auto")
-    ax.set_aspect("equal", "box"); ax.set_xlabel("x/l"); ax.set_ylabel("y/l")
+    ax.set_aspect("equal", "box"); ax.set_xlabel(x_label); ax.set_ylabel(y_label)
     title_artist = ax.set_title("")
     fig.colorbar(im, ax=ax, label="Column density")
     if title:
@@ -146,7 +146,7 @@ def animate_density(frames, xmesh, ymesh, times, *, path, title="",fps=20,
 
     def update(k):
         im.set_array(frames[k].ravel())
-        title.set_text(f"t = {times[k]*1e3:.2f} ms")
+        title_artist.set_text(f"t = {times[k]*1e3:.2f} ms")
         return im, title
 
     anim = FuncAnimation(fig, update, frames=len(frames), blit=False)
