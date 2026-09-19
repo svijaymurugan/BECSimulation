@@ -34,11 +34,11 @@ class Grid:
         # --- real space, unitless, on the device, as broadcast views ---
         self.dxu = self.dx / l
         self.dzu = self.dz / l
-        ux = (self.x / l).to(self.device)
-        uz = (self.z / l).to(self.device)
-        self.ux3 = ux.view(-1, 1, 1)
-        self.uy3 = ux.view(1, -1, 1)
-        self.uz3 = uz.view(1, 1, -1)
+        self.ux = (self.x / l).to(self.device)
+        self.uz = (self.z / l).to(self.device)
+        self.ux3 = self.ux.view(-1, 1, 1)
+        self.uy3 = self.ux.view(1, -1, 1)
+        self.uz3 = self.uz.view(1, 1, -1)
 
         # --- momentum space, unitless ---
         kx = 2 * math.pi * torch.fft.fftfreq(N,  d=self.dxu, dtype=self.real_dtype)
@@ -51,6 +51,32 @@ class Grid:
         # --- volume elements ---
         self.dV    = self.dxu**2 * self.dzu    # unitless
         self.dV_si = self.dx**2  * self.dz     # metres^3
+
+    def healing_length(self, psi, reduce="peak"):
+        """Healing length in oscillator units.
+
+        xi/l = 1/sqrt(2 G0 rho), with rho = |psi|^2 normalised to 1. The particle
+        number enters through G0 = 4 pi hbar^2 a0 Np / (m l^3 hbar omega), so it
+        does NOT appear separately here - putting Np in again would double-count.
+
+        Resolution rule of thumb: dx/xi < 1, or the condensate edge and any
+        vortex cores are unresolved.
+
+        Legacy calculation:
+        self.n0 = torch.max(torch.abs(self.init_wf*self.l**(-3/2))**2).item() * self.Np
+        self.healing_length = 1/np.sqrt(8*pi*self.n0*self.a0)
+        self.N_0 = self.n0 * self.l**3
+        """
+        rho = torch.abs(psi)**2
+        n = (torch.max(rho) if reduce == "peak"
+            else torch.sum(rho**2) * self.dV)
+        if self.cfg.G0 == 0:
+            return float("inf")          # non-interacting: no interaction scale at all
+        if self.cfg.G0 < 0:
+            return float("nan")          # attractive: healing length is not defined      # no interactions, no healing length
+        return (1.0 / torch.sqrt(2 * self.cfg.G0 * n)).item()
+
+        
 
     # ---------- measures ----------
     def norm(self, psi):

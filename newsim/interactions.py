@@ -50,6 +50,23 @@ class QuadrupoleTerm(InteractionTerm):
         op = self.cutoff.apply(rho_k * self.multiplier)
         return self.G2 * torch.real(torch.fft.ifftn(op))
 
+class RampedQuadrupoleTerm(QuadrupoleTerm):
+    """A quadrupole term that ramps up linearly from 0 to G2 over a time interval.
+
+    This is a convenience for testing: the quadrupole term is not used in any
+    of the published results, and it is not a physical ramp.
+    """
+
+    def __init__(self, G2, grid, cutoff, ramp_time):
+        super().__init__(G2, grid, cutoff)
+        self.ramp_time = ramp_time
+
+    def field(self, psi):
+        t = self.grid.cfg.t
+        if t < self.ramp_time:
+            self.G2 = (t / self.ramp_time) * self.G2
+        return super().field(psi)
+
 
 def make_terms(cfg, grid, cutoff) -> list[InteractionTerm]:
     """Build the active terms.

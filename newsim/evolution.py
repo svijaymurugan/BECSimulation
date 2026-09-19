@@ -33,7 +33,7 @@ class Evolution(ABC):
         """-1j for real time, -1.0 for imaginary time."""
 
     def __init__(self, grid, potential, terms, dtau, max_steps,
-                 recorder, measure_every = 1,monitors=()):
+                 recorder, measure_every = 10,monitors=()):
         self.grid = grid
         self.potential = potential
         self.terms = terms
@@ -88,6 +88,9 @@ class Evolution(ABC):
             if self.should_stop(i):
                 break
 
+            if i % (self.max_steps//10) == 0:
+                print(f"{i/self.max_steps * 100} % Completed")
+
         self.steps_taken = i + 1
         return psi
 
@@ -102,7 +105,7 @@ class Evolution(ABC):
         if measure:
 
             self.recorder.record_waist(psi)
-            self.recorder.record_frames(psi)
+            self.recorder.record_frames(psi) #NOTE if this is too frequent, introduce another bool plot which is controlled by cfg.plot_every (just like measure_every)
 
             meas_fields = [term.field(psi) for term in self.terms]
 
@@ -186,10 +189,11 @@ class ImaginaryTimeEvolution(Evolution):
 
     # --- difference 3: stop on convergence, not on a step count ---
     def should_stop(self, i) -> bool:
-        if i % self.check_every or i == 0:
+        if i % self.check_every != 0 or i == 0:
             return False
         current = self.recorder.last_total()
         change = abs(current - self._previous_energy) / self._previous_energy
+        print(f"Step {i}: E = {current:.6f}, change = {change:.3e}")
         if change < self.tolerance:
             self.converged = True
             print(f"Converged at step {i}: E = {current:.6f}, change = {change:.3e}")

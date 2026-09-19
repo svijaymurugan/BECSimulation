@@ -55,9 +55,34 @@ def load_ground_state(path, cfg, device, *, require_converged=True):
 
 # ---------------- run output ----------------
 
-def save_run(directory, cfg, grid, recorder, *, description="",psi_initial=None, psi_final=None,
-            extras=None):
-    """Write the numbers. Plots are derived from these later, not instead of them.
+
+def run_directory(root="storage", label=None, cfg=None) -> Path:
+    """A fresh, non-colliding output directory.
+
+    Timestamp first so directories sort chronologically; optional human label;
+    optional 8-char config hash so you can see at a glance whether two runs
+    used the same physics. Example:
+        storage/20260917_143022_gamma_1.20_a3f9c21b/
+
+    Note the contrast with ground_state_path(), where collision is the POINT -
+    identical physics should reuse one cached file. Here, a repeat run is data
+    you want to keep.
+    """
+    parts = [datetime.now().strftime("%Y%m%d_%H%M%S")]
+    if label:
+        parts.append(label)
+    if cfg is not None:
+        parts.append(cfg.ground_state_key()[:8])
+    return Path(root) / "_".join(parts)
+
+
+def save_run(directory, cfg, grid, recorder, *, description="",
+             psi_initial=None, psi_final=None, extras=None, overwrite=False):
+    """Write the numbers. Plots are derived from these later, not instead.
+
+    The file is self-describing: it carries the config, the time axis, and all
+    four coordinate axes, so re-plotting months later needs no config object,
+    no Grid and no GPU.
 
     Sizes at N=256, 10,000 steps, for calibration:
       energies + waist + modes   ~42 MB   <- always worth it
@@ -65,24 +90,27 @@ def save_run(directory, cfg, grid, recorder, *, description="",psi_initial=None,
       one full 3-D psi c128       268 MB  <- checkpoints only
     """
     directory = Path(directory)
+    path = directory / "run.npz"
+    if path.exists() and not overwrite:
+        raise FileExistsError(
+            f"{path} already exists. Pass overwrite=True to replace it, or use "
+            f"storage.run_directory() for a timestamped directory.")
     directory.mkdir(parents=True, exist_ok=True)
 
     arrays = {
-        "config_json": np.array(json.dumps(cfg.to_dict(), default=str)),
-        "description": np.array(description),
-        "columns":     np.array(recorder.columns),
-        "times":    recorder.times().astype(np.float32),
-        "energies":    recorder.energies().astype(np.float32),
-        "x_axis":  (grid.x / cfg.l).numpy().astype(np.float32),
-        "z_axis":  (grid.z / cfg.l).numpy().astype(np.float32),
+        "format_version": np.array(FORMAT_VERSION),
+        "config_json":    np.array(json.dumps(cfg.to_dict(), default=str)),
+        "description":    np.array(description),
+        "created":        np.array(datetime.now().isoformat(timespec="seconds")),
+        "columns":        np.array(recorder.columns),
+        "times":          recorder.times().astype(np.float32),
+        "energies":       recorder.energies().astype(np.float32),
+        # --- axes: always written, so the file needs no Grid to re-plot ---
+        "x_axis":  (grid.x / cfg.l).cpu().numpy().astype(np.float32),
+        "z_axis":  (grid.z / cfg.l).cpu().numpy().astype(np.float32),
         "kx_axis": torch.fft.fftshift(grid.kx3.flatten()).cpu().numpy().astype(np.float32),
         "kz_axis": torch.fft.fftshift(grid.kz3.flatten()).cpu().numpy().astype(np.float32),
     }
-
-    fxy, fxz = recorder.frames()
-    if fxy is not None:
-        arrays["frames_xy"] = fxy.astype(np.float32)
-        arrays["frames_xz"] = fxz.astype(np.float32)
 
     kx, kz = recorder.modes()
     if kx is not None:
@@ -93,15 +121,18 @@ def save_run(directory, cfg, grid, recorder, *, description="",psi_initial=None,
     if waist is not None:
         arrays["waist"] = waist.astype(np.float32)
 
+    fxy, fxz = recorder.frames()
+    if fxy is not None:
+        arrays["frames_xy"] = fxy.astype(np.float32)
+        arrays["frames_xz"] = fxz.astype(np.float32)
+
     if psi_initial is not None:
         arrays["psi_initial"] = np.asarray(psi_initial)
     if psi_final is not None:
         arrays["psi_final"] = np.asarray(psi_final)
-
     if extras:
         arrays.update(extras)
 
-    path = directory / "run.npz"
     np.savez_compressed(path, **arrays)
     return path
 
@@ -112,3 +143,6 @@ def load_run(path):
     cfg = json.loads(str(data["config_json"]))
     arrays = {k: data[k] for k in data.files if k != "config_json"}
     return cfg, arrays
+
+
+
