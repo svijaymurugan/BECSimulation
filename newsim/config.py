@@ -159,7 +159,7 @@ class SimulationConfig:
                        f"the scale of the trap")
 
         if self.cutoff_k is not None and self.cutoff_k <= 0:
-            bad.append(f"cutoff_k must be positive or None, got {self.cutoff_k}")
+            bad.append(f"cutoff_k must be positive or None, got {self.cutoff_kc}")
 
         if bad:
             raise ValueError("Invalid SimulationConfig:\n  - " + "\n  - ".join(bad))
