@@ -63,11 +63,11 @@ class Evolution(ABC):
     # ---- the algorithm: written ONCE, never subclassed ----
     def run(self, psi):
 
-        if len(self.recorder):
-            raise RuntimeError(
-                f"This Recorder already holds {len(self.recorder)} rows from a "
-                f"previous run. Build a fresh Recorder for each run - re-run the "
-                f"cell that constructs it, not just the cell that calls run().")
+        #if len(self.recorder._rows)>0:
+        #    raise RuntimeError(
+        #        f"This Recorder already holds {len(self.recorder)} rows from a "
+        #        f"previous run. Build a fresh Recorder for each run - re-run the "
+        #        f"cell that constructs it, not just the cell that calls run().")
 
         dtau = self.dtau
         exp_K = torch.exp(self.phase * self.KE * dtau)
