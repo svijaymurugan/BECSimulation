@@ -62,6 +62,13 @@ class Evolution(ABC):
 
     # ---- the algorithm: written ONCE, never subclassed ----
     def run(self, psi):
+
+        if len(self.recorder):
+            raise RuntimeError(
+                f"This Recorder already holds {len(self.recorder)} rows from a "
+                f"previous run. Build a fresh Recorder for each run - re-run the "
+                f"cell that constructs it, not just the cell that calls run().")
+
         dtau = self.dtau
         exp_K = torch.exp(self.phase * self.KE * dtau)
 
@@ -71,6 +78,7 @@ class Evolution(ABC):
 
         i = -1
         start_time = time.perf_counter()
+        mid_time = start_time
         for i in range(self.max_steps):
             if not static:                       # finding 12: skipped entirely
                 V = self.potential(i * dtau)     #   when the trap is static
@@ -91,7 +99,8 @@ class Evolution(ABC):
                 break
 
             if i % (self.max_steps//10) == 0:
-                print(f"{i/self.max_steps * 100} % Completed: {time.perf_counter() - start_time:.1f} s elapsed")
+                print(f"{i/self.max_steps * 100} % Completed: {time.perf_counter() - mid_time:.1f} s elapsed, Total time: {time.perf_counter() - start_time:.1f} s")
+                mid_time = time.perf_counter()
 
         self.steps_taken = i + 1
         print(f"Total time: {time.perf_counter() - start_time:.1f} s for {self.steps_taken} steps")

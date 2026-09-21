@@ -18,13 +18,15 @@ class Recorder:
     them at the end). This applies the same fix to the energies.
     """
 
-    def __init__(self, term_names, measure_every=1, dt = None, track_modes=True, radius_squared=None, dV=None, track_frames=True):
+    def __init__(self, term_names, measure_every=1, frame_stride=10, dt=None, track_modes=True, radius_squared=None, dV=None, track_frames=True):
         self.columns = ["kinetic", "potential", *term_names, "total"]
         self.track_modes = track_modes
         self.measure_every, self.track_frames = measure_every, track_frames
         self.dt = dt
         self._rows = []
         self._frames_xy, self._frames_xz = [], []
+        self.frame_stride = frame_stride
+        self._frame_calls = 0
         self._kx, self._kz = [], []
         self._waist = []
         self._r2, self._dV = radius_squared, dV
@@ -82,9 +84,18 @@ class Recorder:
     def record_frames(self, psi):
         if not self.track_frames:
             return
+        k, self._frame_calls = self._frame_calls, self._frame_calls + 1
+        if k % self.frame_stride:
+            return
         rho = torch.abs(psi)**2
-        self._frames_xy.append(torch.sum(rho, dim=2).detach().to(torch.float32))   # integrate out z
-        self._frames_xz.append(torch.sum(rho, dim=1).detach().to(torch.float32))   # integrate out y
+        self._frames_xy.append(torch.sum(rho, dim=2).to(torch.float32).detach())
+        self._frames_xz.append(torch.sum(rho, dim=1).to(torch.float32).detach())
+
+    def frame_times(self):
+        """Physical time of each saved frame. Frames are every frame_stride-th
+        measurement, so they coincide with rows of times()."""
+        return (np.arange(len(self._frames_xy))
+                * self.dt * self.measure_every * self.frame_stride)    
 
     def frames(self):
         if not self._frames_xy:

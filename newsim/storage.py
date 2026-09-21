@@ -125,6 +125,7 @@ def save_run(directory, cfg, grid, recorder, *, description="",
     if fxy is not None:
         arrays["frames_xy"] = fxy.astype(np.float32)
         arrays["frames_xz"] = fxz.astype(np.float32)
+        arrays['frame_times'] = recorder.frame_times().astype(np.float32)
 
     if psi_initial is not None:
         arrays["psi_initial"] = np.asarray(psi_initial)

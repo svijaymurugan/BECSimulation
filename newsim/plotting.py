@@ -92,15 +92,16 @@ def standard_set(arrays, *, out_dir=None, gif_fps=2, scale="linear") -> dict:
 
     gif_paths = dict()
     if "frames_xy" in arrays and out_dir is not None:
+        frame_times = arrays["frame_times"]
         gif_paths = dict()
         out = Path(out_dir); out.mkdir(parents=True, exist_ok=True)
         X, Y = np.meshgrid(arrays["x_axis"], arrays["x_axis"], indexing="ij")
         X2, Z = np.meshgrid(arrays["x_axis"], arrays["z_axis"], indexing="ij")
-        gif_paths["gif_xy"] = animate_density(arrays["frames_xy"], X, Y, t,
+        gif_paths["gif_xy"] = animate_density(arrays["frames_xy"], X, Y, frame_times,
                                          path=out / "density_xy.gif",
                                          title="XY column density",
                                          x_label="x/l", y_label="y/l", fps=gif_fps, scale=scale)
-        gif_paths["gif_xz"] = animate_density(arrays["frames_xz"], X2, Z, t,
+        gif_paths["gif_xz"] = animate_density(arrays["frames_xz"], X2, Z, frame_times,
                                          path=out / "density_xz.gif",
                                          title="XZ column density",
                                          x_label="x/l", y_label="z/l", fps=gif_fps, scale=scale)

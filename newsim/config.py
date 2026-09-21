@@ -49,6 +49,7 @@ class SimulationConfig:
     # --- numerics ---
     cutoff: str = "Hard Cutoff"
     cutoff_coeff: float = 0.9
+    cutoff_kc: float | None = None        # optional override of kc, m^-1
     include_g0: bool = True
     include_g2: bool = True
     high_precision: bool = True
@@ -157,6 +158,9 @@ class SimulationConfig:
             bad.append(f"sigma/l = {self.sigma/self.l:.2f}; the ansatz is not on "
                        f"the scale of the trap")
 
+        if self.cutoff_k is not None and self.cutoff_k <= 0:
+            bad.append(f"cutoff_k must be positive or None, got {self.cutoff_k}")
+
         if bad:
             raise ValueError("Invalid SimulationConfig:\n  - " + "\n  - ".join(bad))
 
@@ -164,7 +168,7 @@ class SimulationConfig:
     GROUND_STATE_FIELDS = (          # no annotation => a class attr, NOT a field
         "Np", "m", "omega", "a0", "a02", "up", "sigma", "y_scale", "z_scale",
         "imag_gamma", "include_g0", "include_g2", "high_precision",
-        "cutoff", "cutoff_coeff", "imag_dtau", "tolerance",
+        "cutoff", "cutoff_coeff", "imag_dtau", "tolerance", "cutoff_kc"
     )
 
     def ground_state_key(self) -> str:

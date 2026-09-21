@@ -71,12 +71,46 @@ CUTOFFS = {
 
 
 def make_cutoff(cfg, grid) -> Cutoff:
-    kc   = math.pi / grid.dx * cfg.cutoff_coeff     # m^-1
-    kc_u = kc * cfg.l                               # unitless
+    """Build the momentum-space filter for the g2 term.
+
+    The cutoff is PHYSICS, so specify it as a physical momentum with
+    cfg.cutoff_k (m^-1). Then runs at different N or box size simulate the
+    same Hamiltonian, and only the resolution changes.
+
+    cfg.cutoff_coeff - a fraction of the grid's Nyquist momentum - is kept as
+    a fallback for old configs, but beware: it moves whenever N or the box
+    changes, which silently changes the physics.
+    """
     try:
         cls = CUTOFFS[cfg.cutoff]
     except KeyError:
         raise ValueError(
             f"Unknown cutoff {cfg.cutoff!r}. Choose from {sorted(CUTOFFS)}."
         ) from None
-    return cls(grid, kc_u)
+
+    # The grid can only represent momenta up to pi/dx along each axis. With
+    # Nz != N the z spacing differs, so the binding limit is the smaller one.
+    k_nyq_xy = math.pi / grid.dx                        # m^-1
+    k_nyq_z  = math.pi / grid.dz                        # m^-1
+    k_grid   = min(k_nyq_xy, k_nyq_z)
+
+    if cfg.cutoff_k is not None:
+        kc = cfg.cutoff_k                               # physical, m^-1
+    else:
+        kc = k_nyq_xy * cfg.cutoff_coeff                # legacy: tied to the grid
+
+    if cls is not NoCutoff:
+        if kc >= k_grid:
+            raise ValueError(
+                f"cutoff {kc:.3e} m^-1 is at or above the grid's Nyquist momentum "
+                f"{k_grid:.3e} m^-1, so the filter removes nothing and the g2 "
+                f"product aliases. Increase N (need dx < {math.pi/kc*1e6:.3f} um).")
+        if kc > k_grid / 1.5:
+            warnings.warn(
+                f"cutoff {kc:.3e} m^-1 is within 1.5x of the grid's Nyquist "
+                f"momentum {k_grid:.3e} m^-1; momenta near the cutoff are poorly "
+                f"resolved. Consider N >= "
+                f"{math.ceil(2 * cfg.up * 1.5 * kc / math.pi)}.",
+                RuntimeWarning)
+
+    return cls(grid, kc * cfg.l)                        # unitless, for the masks
