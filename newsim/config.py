@@ -158,7 +158,7 @@ class SimulationConfig:
             bad.append(f"sigma/l = {self.sigma/self.l:.2f}; the ansatz is not on "
                        f"the scale of the trap")
 
-        if self.cutoff_k is not None and self.cutoff_k <= 0:
+        if self.cutoff_kc is not None and self.cutoff_kc <= 0:
             bad.append(f"cutoff_k must be positive or None, got {self.cutoff_kc}")
 
         if bad:
