@@ -94,8 +94,8 @@ def make_cutoff(cfg, grid) -> Cutoff:
     k_nyq_z  = math.pi / grid.dz                        # m^-1
     k_grid   = min(k_nyq_xy, k_nyq_z)
 
-    if cfg.cutoff_k is not None:
-        kc = cfg.cutoff_k                               # physical, m^-1
+    if cfg.cutoff_kc is not None:
+        kc = cfg.cutoff_kc                               # physical, m^-1
     else:
         kc = k_nyq_xy * cfg.cutoff_coeff                # legacy: tied to the grid
 
