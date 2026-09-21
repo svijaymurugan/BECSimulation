@@ -47,6 +47,7 @@ class Grid:
         self.ky3 = kx.to(self.device).view(1, -1, 1)
         self.kz3 = kz.to(self.device).view(1, 1, -1)
         self.K2  = self.kx3**2 + self.ky3**2 + self.kz3**2      # one N^3 array
+        self.kmax = torch.pi / self.dx
 
         # --- volume elements ---
         self.dV    = self.dxu**2 * self.dzu    # unitless

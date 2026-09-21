@@ -23,6 +23,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 
 import torch
+import time
 
 
 class Evolution(ABC):
@@ -69,6 +70,7 @@ class Evolution(ABC):
         exp_V = torch.exp(self.phase * V * (dtau / 2))
 
         i = -1
+        start_time = time.perf_counter()
         for i in range(self.max_steps):
             if not static:                       # finding 12: skipped entirely
                 V = self.potential(i * dtau)     #   when the trap is static
@@ -89,9 +91,10 @@ class Evolution(ABC):
                 break
 
             if i % (self.max_steps//10) == 0:
-                print(f"{i/self.max_steps * 100} % Completed")
+                print(f"{i/self.max_steps * 100} % Completed: {time.perf_counter() - start_time:.1f} s elapsed")
 
         self.steps_taken = i + 1
+        print(f"Total time: {time.perf_counter() - start_time:.1f} s for {self.steps_taken} steps")
         return psi
 
     #@torch.compile

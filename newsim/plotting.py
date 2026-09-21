@@ -73,7 +73,7 @@ def waist_history(times, waist, *, title="RMS waist"):
     return fig
 
 # --- plotting.py ---
-def standard_set(arrays, *, out_dir=None, gif_fps=5) -> dict:
+def standard_set(arrays, *, out_dir=None, gif_fps=20) -> dict:
     """Every routine figure for a run, keyed by name. Static figures are
     returned unsaved; GIFs must be written to disk, so they need out_dir.
     Takes only arrays - works identically on a live run or a loaded npz.
@@ -124,30 +124,50 @@ def save_set(figs: dict, directory, *, dpi=300, close=True):
     return written
 
 
+def animate_density(frames, xmesh, ymesh, times, *, path, title="",
+                    x_label="x/l", y_label="y/l", fps=20, cmap="magma",
+                    scale="linear", decades=3, clip_percentile=None,
+                    per_frame=False):
+    """Write a GIF from recorded density frames.
 
-
-def animate_density(frames, xmesh, ymesh, times, *, path, x_label ="",y_label ="",title="",fps=10,
-                    log=False, cmap="magma"):
-    """Write a GIF from recorded density frames. Needs pillow."""
+    scale: "linear" | "log" | "power"
+    decades: for log, how many decades below vmax to show (3 is usually right)
+    clip_percentile: e.g. 99.5, to stop a thin peak eating the dynamic range
+    per_frame: rescale each frame independently. Makes every frame well-exposed
+        but DESTROYS comparability between frames - an expanding, thinning cloud
+        will look like it is not changing. The title is marked when this is on.
+    """
     from matplotlib.animation import FuncAnimation
-    from matplotlib.colors import LogNorm, Normalize
+    from matplotlib.colors import LogNorm, Normalize, PowerNorm
 
-    vmax = float(np.max(frames))
-    norm = (LogNorm(vmin=max(vmax*1e-6, 1e-12), vmax=vmax) if log
-            else Normalize(vmin=0, vmax=vmax))
+    def limits(data):
+        vmax = (float(np.percentile(data, clip_percentile)) if clip_percentile
+                else float(np.max(data)))
+        vmax = max(vmax, 1e-300)
+        if scale == "log":
+            return LogNorm(vmin=vmax * 10.0**(-decades), vmax=vmax)
+        if scale == "power":
+            return PowerNorm(gamma=0.4, vmin=0.0, vmax=vmax)
+        return Normalize(vmin=0.0, vmax=vmax)
+
+    norm = limits(frames)          # from the whole stack, unless per_frame
 
     fig, ax = plt.subplots()
-    im = ax.pcolormesh(xmesh, ymesh, frames[0], norm=norm, cmap=cmap, shading="auto")
-    ax.set_aspect("equal", "box"); ax.set_xlabel(x_label); ax.set_ylabel(y_label)
+    im = ax.pcolormesh(xmesh, ymesh, frames[0], norm=norm, cmap=cmap,
+                       shading="auto")
+    ax.set_aspect("equal", "box")
+    ax.set_xlabel(x_label); ax.set_ylabel(y_label)
     title_artist = ax.set_title("")
     fig.colorbar(im, ax=ax, label="Column density")
     if title:
-        fig.suptitle(title)
+        fig.suptitle(title + ("  [per-frame scale]" if per_frame else ""))
 
     def update(k):
         im.set_array(frames[k].ravel())
+        if per_frame:
+            im.set_norm(limits(frames[k]))
         title_artist.set_text(f"t = {times[k]*1e3:.2f} ms")
-        return im, title
+        return im, title_artist
 
     anim = FuncAnimation(fig, update, frames=len(frames), blit=False)
     anim.save(path, writer="pillow", fps=fps)
