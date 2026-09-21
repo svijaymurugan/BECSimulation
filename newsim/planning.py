@@ -17,7 +17,7 @@ def grid_requirements(cfg, *, extent=None, box_sigmas=3.0,
     E0 = 0.75 * (cfg.sigma / l)**2                 # initial <V>, hbar*omega
     k_rms_axis = math.sqrt(2 * E0 / 3) / l         # m^-1, if all of E0 -> kinetic
     k_focus = tail_sigmas * k_rms_axis
-    k_cut = k_margin * cfg.cutoff_k if cfg.cutoff_k else 0.0
+    k_cut = k_margin * cfg.cutoff_kc if cfg.cutoff_kc else 0.0
     k_need = max(k_focus, k_cut)
 
     # 3. N
