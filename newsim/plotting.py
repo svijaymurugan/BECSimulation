@@ -73,7 +73,7 @@ def waist_history(times, waist, *, title="RMS waist"):
     return fig
 
 # --- plotting.py ---
-def standard_set(arrays, *, out_dir=None, gif_fps=20) -> dict:
+def standard_set(arrays, *, out_dir=None, gif_fps=2, scale="linear") -> dict:
     """Every routine figure for a run, keyed by name. Static figures are
     returned unsaved; GIFs must be written to disk, so they need out_dir.
     Takes only arrays - works identically on a live run or a loaded npz.
@@ -99,11 +99,11 @@ def standard_set(arrays, *, out_dir=None, gif_fps=20) -> dict:
         gif_paths["gif_xy"] = animate_density(arrays["frames_xy"], X, Y, t,
                                          path=out / "density_xy.gif",
                                          title="XY column density",
-                                         x_label="x/l", y_label="y/l", fps=gif_fps)
+                                         x_label="x/l", y_label="y/l", fps=gif_fps, scale=scale)
         gif_paths["gif_xz"] = animate_density(arrays["frames_xz"], X2, Z, t,
                                          path=out / "density_xz.gif",
                                          title="XZ column density",
-                                         x_label="x/l", y_label="z/l", fps=gif_fps)
+                                         x_label="x/l", y_label="z/l", fps=gif_fps, scale=scale)
     return figs, gif_paths
 
 
