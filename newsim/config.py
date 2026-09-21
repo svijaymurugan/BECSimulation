@@ -251,8 +251,13 @@ class SimulationConfig:
         terms = [n for n, on in (("g0", self.include_g0),
                                     ("g2", self.include_g2 and self.a02 != 0)) if on]
         L.append(row("interactions", ", ".join(terms) or "none"))
-        L.append(row("cutoff", f"{self.cutoff} @ {self.cutoff_coeff}"))
         L.append(row("precision", "float64" if self.high_precision else "float32"))
+        if self.cutoff_kc is not None:
+            L.append(row("cutoff", self.cutoff, "",
+                         f"k_c = {self.cutoff_kc:.3g} m^-1 = {self.cutoff_kc * self.l:.3g} / l"))
+        else:
+            L.append(row("cutoff", self.cutoff, "",
+                         f"{self.cutoff_coeff} x Nyquist (moves with N!)"))
 
         L.append("\nRecording")
         L.append(row("waist", "on" if self.track_waist else "off"))

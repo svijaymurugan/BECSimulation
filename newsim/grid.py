@@ -76,7 +76,6 @@ class Grid:
         if self.cfg.G0 < 0:
             return float("nan")          # attractive: healing length is not defined      # no interactions, no healing length
         return (1.0 / torch.sqrt(2 * self.cfg.G0 * n)).item()
-
         
 
     # ---------- measures ----------
@@ -107,3 +106,16 @@ class Grid:
                       / (2 * cfg.sigma**2)).to(self.complex_dtype)
         g = g * (1.0 / self.norm(g).item())**0.5
         return (g * l**(3/2)).to(self.complex_dtype)
+
+    def mean_r2(self, psi):
+        """<r^2> in oscillator units, via 1-D marginals of |psi|^2.
+
+        Avoids storing a full r^2 array: sum the density down to each axis,
+        then weight by that axis's coordinate squared.
+        """
+        rho = torch.abs(psi)**2
+        x2 = self.ux3.flatten()**2
+        z2 = self.uz3.flatten()**2
+        return (torch.sum(rho.sum(dim=(1, 2)) * x2)
+                + torch.sum(rho.sum(dim=(0, 2)) * x2)
+                + torch.sum(rho.sum(dim=(0, 1)) * z2)) * self.dV

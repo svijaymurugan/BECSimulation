@@ -103,13 +103,13 @@ def save_run(directory, cfg, grid, recorder, *, description="",
         "description":    np.array(description),
         "created":        np.array(datetime.now().isoformat(timespec="seconds")),
         "columns":        np.array(recorder.columns),
-        "times":          recorder.times().astype(np.float32),
-        "energies":       recorder.energies().astype(np.float32),
+        "times":          recorder.times(),
+        "energies":       recorder.energies(),
         # --- axes: always written, so the file needs no Grid to re-plot ---
-        "x_axis":  (grid.x / cfg.l).cpu().numpy().astype(np.float32),
-        "z_axis":  (grid.z / cfg.l).cpu().numpy().astype(np.float32),
-        "kx_axis": torch.fft.fftshift(grid.kx3.flatten()).cpu().numpy().astype(np.float32),
-        "kz_axis": torch.fft.fftshift(grid.kz3.flatten()).cpu().numpy().astype(np.float32),
+        "x_axis":  (grid.x / cfg.l).cpu().numpy(),
+        "z_axis":  (grid.z / cfg.l).cpu().numpy(),
+        "kx_axis": torch.fft.fftshift(grid.kx3.flatten()).cpu().numpy(),
+        "kz_axis": torch.fft.fftshift(grid.kz3.flatten()).cpu().numpy(),
     }
 
     kx, kz = recorder.modes()

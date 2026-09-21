@@ -18,7 +18,7 @@ class Recorder:
     them at the end). This applies the same fix to the energies.
     """
 
-    def __init__(self, term_names, measure_every=1, frame_stride=10, dt=None, track_modes=True, radius_squared=None, dV=None, track_frames=True):
+    def __init__(self, term_names, measure_every=1, frame_stride=10, dt=None, track_modes=False, track_waist=False, grid=None, track_frames=True):
         self.columns = ["kinetic", "potential", *term_names, "total"]
         self.track_modes = track_modes
         self.measure_every, self.track_frames = measure_every, track_frames
@@ -29,7 +29,8 @@ class Recorder:
         self._frame_calls = 0
         self._kx, self._kz = [], []
         self._waist = []
-        self._r2, self._dV = radius_squared, dV
+        self.track_waist = track_waist
+        self._grid = grid
 
     @classmethod
     def energies_only(cls, term_names, **kwargs):
@@ -50,10 +51,9 @@ class Recorder:
         self._kz.append(torch.fft.fftshift(torch.abs(psi_k[0, 0, :])).detach())
 
     def record_waist(self, psi):
-        if self._r2 is None:
+        if not self.track_waist:
             return
-        self._waist.append(
-            (torch.sum(torch.abs(psi)**2 * self._r2) * self._dV).detach())
+        self._waist.append(self._grid.mean_r2(psi).detach())
 
     # ---- readers: these DO transfer, and are called once, at the end ----
     def last_total(self) -> float:

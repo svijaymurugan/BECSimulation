@@ -43,7 +43,7 @@ class Evolution(ABC):
         self.recorder = recorder
         self.monitors = monitors
         self.ke_divisor = grid.n_points
-        self.KE = 0.5 * grid.K2
+        #self.KE = 0.5 * grid.K2
         self.steps_taken = 0
         self.measure_every = measure_every
 
@@ -70,7 +70,9 @@ class Evolution(ABC):
         #        f"cell that constructs it, not just the cell that calls run().")
 
         dtau = self.dtau
-        exp_K = torch.exp(self.phase * self.KE * dtau)
+        KE = 0.5 * self.grid.K2
+        exp_K = torch.exp(self.phase * KE * dtau)
+        del KE
 
         static = self.potential.is_static
         V = self.potential(0.0)
@@ -99,7 +101,7 @@ class Evolution(ABC):
                 break
 
             if i % (self.max_steps//10) == 0:
-                print(f"{i/self.max_steps * 100} % Completed: {time.perf_counter() - mid_time:.1f} s elapsed, Total time: {time.perf_counter() - start_time:.1f} s")
+                print(f"{i/self.max_steps * 100} % Completed: {(time.perf_counter() - mid_time)/60:.1f} min elapsed, Total time: {(time.perf_counter() - start_time)/60:.1f} min")
                 mid_time = time.perf_counter()
 
         self.steps_taken = i + 1
@@ -128,8 +130,8 @@ class Evolution(ABC):
             energies["potential"] = torch.sum(V * density) * grid.dV
 
             psi_k_meas = torch.fft.fftn(psi)
-            energies["kinetic"] = (torch.sum(self.KE * torch.abs(psi_k_meas)**2)
-                                * grid.dV / self.ke_divisor)  
+            energies["kinetic"] = (0.5 * torch.sum(grid.K2 * torch.abs(psi_k_meas)**2)
+                                   * grid.dV / self.ke_divisor)
 
             # Sum in the original's order: ((KE + pot) + g0) + g2.
             # Float addition is not associative; see Part 0.
