@@ -1,5 +1,6 @@
 import math
 from scipy.fft import next_fast_len
+import numpy as np
 
 def grid_requirements(cfg, *, extent=None, box_sigmas=3.0,
                       k_margin=1.5, tail_sigmas=4.5):
@@ -34,3 +35,23 @@ def grid_requirements(cfg, *, extent=None, box_sigmas=3.0,
     print(f"grid:     dx <= {dx_max*1e6:.3f} um  ->  N >= {N_min}"
           f"   (you have {cfg.N})  ~{gb:.2f} GB per complex array")
     return N_min
+
+def ramp_residual(kind, duration, mode_freq, *, n=20001):
+    """Predicted leftover oscillation of a mode, as a fraction of a quench's.
+
+    Linear response: switching a coupling on along s(t) leaves a mode of
+    angular frequency Omega oscillating with amplitude |∫ s'(t) e^{i Omega t} dt|,
+    which is 1 for an instantaneous switch and falls toward 0 for slow ramps.
+
+    duration in seconds; mode_freq in rad/s, e.g. sqrt(2) * cfg.omega for the
+    quadrupole mode of an isotropic Thomas-Fermi condensate.
+    """
+    from ramps import Ramp
+    if kind == "quench":
+        return 1.0
+    trap = getattr(np, "trapezoid", None) or np.trapz     # numpy 2 renamed it
+    tmax = 30 * duration if kind == "exponential" else duration
+    tt = np.linspace(0.0, tmax, n)
+    r = Ramp(kind, start=0.0, duration=duration)
+    s = np.array([r(x) for x in tt])
+    return abs(trap(np.gradient(s, tt) * np.exp(1j * mode_freq * tt), tt))

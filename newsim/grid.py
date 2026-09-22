@@ -107,15 +107,14 @@ class Grid:
         g = g * (1.0 / self.norm(g).item())**0.5
         return (g * l**(3/2)).to(self.complex_dtype)
 
-    def mean_r2(self, psi):
-        """<r^2> in oscillator units, via 1-D marginals of |psi|^2.
-
-        Avoids storing a full r^2 array: sum the density down to each axis,
-        then weight by that axis's coordinate squared.
-        """
+    def second_moments(self, psi):
+        """(<x^2>, <y^2>, <z^2>) in oscillator units, via 1-D marginals of |psi|^2."""
         rho = torch.abs(psi)**2
         x2 = self.ux3.flatten()**2
         z2 = self.uz3.flatten()**2
-        return (torch.sum(rho.sum(dim=(1, 2)) * x2)
-                + torch.sum(rho.sum(dim=(0, 2)) * x2)
-                + torch.sum(rho.sum(dim=(0, 1)) * z2)) * self.dV
+        return torch.stack([torch.sum(rho.sum(dim=(1, 2)) * x2),
+                            torch.sum(rho.sum(dim=(0, 2)) * x2),
+                            torch.sum(rho.sum(dim=(0, 1)) * z2)]) * self.dV
+
+    def mean_r2(self, psi):
+        return self.second_moments(psi).sum()

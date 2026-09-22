@@ -6,6 +6,7 @@ import json
 import math
 from dataclasses import dataclass, asdict, fields
 from pathlib import Path
+from ramps import RAMP_KINDS
 
 import scipy.constants as const
 
@@ -53,6 +54,12 @@ class SimulationConfig:
     include_g0: bool = True
     include_g2: bool = True
     high_precision: bool = True
+
+    # --- g2 ramp (real time only; the ground state is computed with g2 OFF) ---
+    g2_ramp: str = "none"          # one of ramps.RAMP_KINDS
+    g2_ramp_start: float = 0.0     # s, hold time before the ramp begins
+    g2_ramp_time: float = 0.0      # s, duration (time constant for "exponential")
+    a02_initial: float = 0.0       # m^3, a02 before the ramp (0 = g2 off)
 
     # --- run control ---
     init_type: str = "Ground State"
@@ -116,11 +123,17 @@ class SimulationConfig:
             return float("nan")          # attractive: elastic ratio is not defined
         return self.G2 / self.G0
 
-    @property #NOTE: I haven't incorporated this as a check. The function is just here for now.
+    @property #NOTE: I haven't incorporated this as a check. The function is just here for now. Maybe also add the unitless gas parameter.
     def collapse_parameter(self) -> float:
         """N|a0|/l. Attractive condensates collapse above ~0.5 (Bradley et al.).
         Meaningless for a0 > 0."""
         return self.Np * abs(self.a0) / self.l
+
+    @property
+    def tf_radius(self) -> float:
+        """Thomas-Fermi radius estimate (m): R/l = (15 G0 / 4 pi)^(1/5).
+        Isotropic trap, contact term only - an estimate for sizing the box."""
+        return self.l * (15 * self.G0 / (4 * math.pi))**0.2
 
     # ---------- validation: runs at construction, before anything is used ----------
     def __post_init__(self):
@@ -161,6 +174,22 @@ class SimulationConfig:
         if self.cutoff_kc is not None and self.cutoff_kc <= 0:
             bad.append(f"cutoff_k must be positive or None, got {self.cutoff_kc}")
 
+        if self.g2_ramp not in RAMP_KINDS:
+            bad.append(f"g2_ramp must be one of {RAMP_KINDS}, got {self.g2_ramp!r}")
+        elif self.g2_ramp not in ("none", "quench") and self.g2_ramp_time <= 0:
+            bad.append(f"g2_ramp={self.g2_ramp!r} needs g2_ramp_time > 0")
+        if self.g2_ramp_start < 0:
+            bad.append(f"g2_ramp_start must be >= 0, got {self.g2_ramp_start}")
+        if self.g2_ramp != "none" and not (self.include_g2 and self.a02 != 0):
+            bad.append("g2_ramp is set but the g2 term is off "
+                       "(include_g2=False or a02=0) - there is nothing to ramp")
+        if self.g2_ramp == "none" and self.a02_initial != 0.0:
+            bad.append("a02_initial only has meaning with a g2 ramp")
+        if self.g2_ramp != "none" and not (self.a02_initial * self.a02 >= 0
+                                           and abs(self.a02_initial) < abs(self.a02)):
+            bad.append(f"a02_initial must lie between 0 and a02 "
+                       f"(got {self.a02_initial:g}, a02 = {self.a02:g})")
+
         if bad:
             raise ValueError("Invalid SimulationConfig:\n  - " + "\n  - ".join(bad))
 
@@ -176,6 +205,8 @@ class SimulationConfig:
         payload = {k: getattr(self, k) for k in self.GROUND_STATE_FIELDS}
         payload["N"]  = self.N
         payload["nz"] = self.nz          # RESOLVED, not the Nz shorthand
+        if self.g2_ramp != "none":
+            payload["a02_ground_state"] = self.a02_initial
         blob = json.dumps(payload, sort_keys=True)
         return hashlib.sha256(blob.encode()).hexdigest()[:16]
 
@@ -251,6 +282,13 @@ class SimulationConfig:
         terms = [n for n, on in (("g0", self.include_g0),
                                     ("g2", self.include_g2 and self.a02 != 0)) if on]
         L.append(row("interactions", ", ".join(terms) or "none"))
+        if self.g2_ramp == "none":
+            L.append(row("g2 ramp", "none", "", "g2 on from t = 0"))
+        else:
+            L.append(row("g2 ramp", self.g2_ramp, "",
+                         f"a02 {self.a02_initial:.3g} -> {self.a02:.3g} m^3, "
+                         f"start {self.g2_ramp_start * 1e3:.3g} ms, "
+                         f"duration {self.g2_ramp_time * 1e3:.3g} ms"))
         L.append(row("precision", "float64" if self.high_precision else "float32"))
         if self.cutoff_kc is not None:
             L.append(row("cutoff", self.cutoff, "",

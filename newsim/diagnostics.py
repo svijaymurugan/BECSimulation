@@ -34,11 +34,9 @@ class Recorder:
 
     @classmethod
     def energies_only(cls, term_names, **kwargs):
-        """Energies and nothing else. The right Recorder for imaginary time:
-        ITE only needs the total for its convergence check, and a movie of a
-        ground-state search is not something anyone wants."""
+        """Energies and nothing else - the right Recorder for imaginary time."""
         return cls(term_names, track_modes=False, track_frames=False,
-                   radius_squared=None, **kwargs)
+                   track_waist=False, **kwargs)
 
     def record_energies(self, energies):
         self._rows.append(
@@ -53,7 +51,7 @@ class Recorder:
     def record_waist(self, psi):
         if not self.track_waist:
             return
-        self._waist.append(self._grid.mean_r2(psi).detach())
+        self._waist.append(self._grid.second_moments(psi).detach())
 
     # ---- readers: these DO transfer, and are called once, at the end ----
     def last_total(self) -> float:
@@ -118,14 +116,18 @@ class NormMonitor:
 
 
 class EnergyMonitor:
-    """With a static trap, total energy should be constant."""
+    """With a time-independent Hamiltonian, total energy should be constant.
+
+    Goes silent when the trap is modulated or any coupling is ramped - energy
+    is not expected to be conserved then, and warning would be noise.
+    """
 
     def __init__(self, every=500, rel_tol=1e-4):
         self.every, self.rel_tol = every, rel_tol
         self._reference = None
 
     def check(self, psi, i, evolution):
-        if i % self.every:
+        if not evolution.is_static or i % self.every:
             return
         e = evolution.recorder.last_total()
         if self._reference is None:

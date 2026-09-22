@@ -14,6 +14,9 @@ from potentials import make_potential
 from evolution import RealTimeEvolution, ImaginaryTimeEvolution
 from diagnostics import Recorder, NormMonitor
 import storage, plotting
+from dataclasses import replace
+from ramps import Ramp, RAMP_KINDS
+from interactions import RampedTerm, ContactTerm
 
 HBAR = 1.054571817e-34
 
@@ -153,6 +156,57 @@ def test_virial_relation_noninteracting():
     assert abs(2*kin - 2*trap) / abs(trap) < 1e-5
 
 
+
+def test_ramp_endpoints():
+    """Every ramp profile is exactly 0 before start and reaches 1 by the end
+    (exponential only asymptotically)."""
+    for kind in RAMP_KINDS:
+        if kind == "none":
+            continue
+        r = Ramp(kind, start=1.0, duration=2.0)
+        assert r(0.5) == 0.0, kind
+        if kind == "exponential":
+            assert math.isclose(r(1.0 + 20 * 2.0), 1.0, rel_tol=1e-8)
+        else:
+            assert math.isclose(r(3.0), 1.0), kind
+
+
+def test_ramped_term_scales_from_initial_to_one():
+    term = RampedTerm(ContactTerm(1.0), Ramp("linear", start=1.0, duration=1.0),
+                      initial=0.25)
+    assert term.scale(0.0) == 0.25
+    assert math.isclose(term.scale(1.5), 0.625)
+    assert term.scale(3.0) == 1.0
+
+
+def test_imag_stage_holds_g2_at_initial_value():
+    base = small(include_g2=True, a02=5e-23, g2_ramp="linear", g2_ramp_time=1e-3)
+    grid = Grid(base, "cpu")
+    cutoff = make_cutoff(base, grid)
+    names = lambda c, s: [t.name for t in make_terms(c, grid, cutoff, stage=s)]
+    assert "g2 (quadrupole)" not in names(base, "imag")                 # starts at 0
+    assert "g2 (quadrupole)" in names(replace(base, a02_initial=5e-28), "imag")
+    assert "g2 (quadrupole)" in names(base, "real")
+
+
+def test_ramped_g2_is_off_before_start():
+    cfg = small(include_g0=True, include_g2=True, a02=5e-23, cutoff="Hard Cutoff",
+                g2_ramp="smoother", g2_ramp_start=1.0, g2_ramp_time=1e-3)
+    _, ev, rec = build(cfg, "real")
+    ev.run(ev.grid.gaussian().to(ev.grid.device))
+    col = rec.columns.index("g2 (quadrupole)")
+    assert np.all(rec.energies()[:, col] == 0.0)
+
+
+def test_ground_state_key_with_ramps():
+    """Ramp shape and timing share a ground state; the starting a02 does not."""
+    a = small(include_g2=True, a02=5e-23, g2_ramp="linear", g2_ramp_time=1e-3)
+    b = replace(a, g2_ramp="smooth", g2_ramp_time=5e-3, g2_ramp_start=2e-3)
+    c = replace(a, g2_ramp="none")
+    d = replace(a, a02_initial=5e-28)
+    assert a.ground_state_key() == b.ground_state_key()
+    assert a.ground_state_key() != c.ground_state_key()
+    assert a.ground_state_key() != d.ground_state_key()
 
 '''
 cfg = small(include_g0=True, include_g2=False, a02=0.0, up=2.0e-5, N=64)

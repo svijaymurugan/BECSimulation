@@ -47,6 +47,13 @@ class Evolution(ABC):
         self.steps_taken = 0
         self.measure_every = measure_every
 
+    @property
+    def is_static(self) -> bool:
+        """True if the Hamiltonian has no explicit time dependence -
+        neither the trap nor any coupling changes with t."""
+        return (self.potential.is_static
+                and all(term.is_static for term in self.terms))
+
     # ---- the other four differences, with harmless defaults ----
     def clip(self, exponent):
         """Imaginary time overrides this to stop exp() overflowing."""
@@ -87,7 +94,7 @@ class Evolution(ABC):
                 exp_V = torch.exp(self.phase * V * (dtau / 2))
 
             measure = (i % self.measure_every == 0)
-            psi, energies = self.step(psi, V, exp_V, exp_K, dtau, measure=measure)
+            psi, energies = self.step(psi, V, exp_V, exp_K, dtau, measure=measure, t = i * dtau)
             psi = self.after_step(psi, i)
 
             if measure:
@@ -109,7 +116,7 @@ class Evolution(ABC):
         return psi
 
     #@torch.compile
-    def step(self, psi, V, exp_V, exp_K, dtau, measure=True):
+    def step(self, psi, V, exp_V, exp_K, dtau, t, measure=True):
         """One symmetric split step. No branch on real vs imaginary anywhere:
         the difference is carried entirely by `self.phase`."""
         grid = self.grid
@@ -117,28 +124,22 @@ class Evolution(ABC):
         energies = None
 
         if measure:
-
-            self.recorder.record_waist(psi)
-            self.recorder.record_frames(psi) #NOTE if this is too frequent, introduce another bool plot which is controlled by cfg.plot_every (just like measure_every)
-
-            meas_fields = [term.field(psi) for term in self.terms]
-
-            # --- measure (see finding 06 for why it happens HERE) ---
             density = torch.abs(psi)**2
-            energies = {t.name: t.energy(f, density, grid.dV)
-                        for t, f in zip(self.terms, meas_fields)}
+            meas_fields = [term.field(psi, t) for term in self.terms]
+            energies = {term.name: term.energy(f, density, grid.dV)
+                        for term, f in zip(self.terms, meas_fields)}
             energies["potential"] = torch.sum(V * density) * grid.dV
-
             psi_k_meas = torch.fft.fftn(psi)
             energies["kinetic"] = (0.5 * torch.sum(grid.K2 * torch.abs(psi_k_meas)**2)
                                    * grid.dV / self.ke_divisor)
-
-            # Sum in the original's order: ((KE + pot) + g0) + g2.
-            # Float addition is not associative; see Part 0.
+            # sum in the original order: ((KE + pot) + g0) + g2
             total = energies["kinetic"] + energies["potential"]
             for term in self.terms:
                 total = total + energies[term.name]
             energies["total"] = total
+            del density, meas_fields, psi_k_meas
+            self.recorder.record_waist(psi)
+            self.recorder.record_frames(psi)
 
         # --- first half step in position space ---
         psi = psi * exp_V
@@ -156,6 +157,7 @@ class Evolution(ABC):
         #energies["kinetic"] = (torch.sum(self.KE * torch.abs(psi_k)**2)
         #                       * grid.dV / grid.n_points) / norm  # Phase B seam - see finding 04
         psi = torch.fft.ifftn(psi_k)
+        del psi_k
 
         # --- second half step in position space ---
         psi = psi * exp_V

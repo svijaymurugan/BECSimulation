@@ -61,14 +61,27 @@ def mode_spectrogram(k_axis, times, amplitudes, *, title="", noise_floor=1e-10):
     fig.tight_layout()
     return fig
 
-def waist_history(times, waist, *, title="RMS waist"):
-    """<r^2> in oscillator units against time."""
+def waist_history(times, waist, *, title="Cloud size"):
+    """<r^2> (old runs, 1-D) or <x^2>, <y^2>, <z^2> (n, 3), in oscillator units."""
     fig, ax = plt.subplots()
-    ax.plot(times, waist)
-    ax.set_xlabel("Time (s)")
-    ax.set_ylabel(r"$\langle r^2 \rangle / \ell^2$")
-    ax.set_title(title)
-    ax.grid(True, alpha=0.4)
+    if waist.ndim == 1:
+        ax.plot(times, waist, label=r"$\langle r^2 \rangle$")
+    else:
+        for j, axis in enumerate("xyz"):
+            ax.plot(times, waist[:, j], label=rf"$\langle {axis}^2 \rangle$")
+    ax.set_xlabel("Time (s)"); ax.set_ylabel(r"size / $\ell^2$")
+    ax.set_title(title); ax.legend(); ax.grid(True, alpha=0.4)
+    fig.tight_layout()
+    return fig
+
+
+def aspect_history(times, waist, *, title="Aspect ratio"):
+    """sqrt(<z^2>/<x^2>): the shape response to the quadrupolar g2 term."""
+    fig, ax = plt.subplots()
+    ax.plot(times, np.sqrt(waist[:, 2] / waist[:, 0]))
+    ax.axhline(1.0, color="k", lw=0.5)
+    ax.set_xlabel("Time (s)"); ax.set_ylabel(r"$\sqrt{\langle z^2\rangle/\langle x^2\rangle}$")
+    ax.set_title(title); ax.grid(True, alpha=0.4)
     fig.tight_layout()
     return fig
 
@@ -83,6 +96,8 @@ def standard_set(arrays, *, out_dir=None, gif_fps=2, scale="linear") -> dict:
 
     if "waist" in arrays:
         figs["waist"] = waist_history(t, arrays["waist"])
+        if arrays["waist"].ndim == 2:
+            figs["aspect"] = aspect_history(t, arrays["waist"])
 
     if "kx_amplitudes" in arrays:
         figs["modes_kx"] = mode_spectrogram(arrays["kx_axis"], t,
