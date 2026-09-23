@@ -208,6 +208,23 @@ def test_ground_state_key_with_ramps():
     assert a.ground_state_key() != c.ground_state_key()
     assert a.ground_state_key() != d.ground_state_key()
 
+def test_ramped_g2_acts_on_the_wavefunction():
+    """After the ramp, g2 must change psi itself - not just the reported energy.
+    Catches the propagation path calling field(psi) without the time.
+    """
+    cfg = small(include_g0=True, include_g2=True, a02=5e-23, cutoff="Hard Cutoff",
+                g2_ramp="quench", g2_ramp_start=0.0)
+    _, ev_on, _ = build(cfg, "real")
+    psi_on = ev_on.run(ev_on.grid.gaussian().to(ev_on.grid.device))
+
+    cfg_off = replace(cfg, include_g2=False, a02=0.0, g2_ramp="none")
+    _, ev_off, _ = build(cfg_off, "real")
+    psi_off = ev_off.run(ev_off.grid.gaussian().to(ev_off.grid.device))
+
+    diff = (torch.abs(psi_on - psi_off).max()
+            / torch.abs(psi_off).max()).item()
+    assert diff > 1e-6, f"g2 changed psi by only {diff:.1e} - is it in the propagation?"
+
 '''
 cfg = small(include_g0=True, include_g2=False, a02=0.0, up=2.0e-5, N=64)
 grid, ev, rec = build(cfg, "imag")

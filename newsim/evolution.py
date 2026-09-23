@@ -144,7 +144,7 @@ class Evolution(ABC):
         # --- first half step in position space ---
         psi = psi * exp_V
 
-        fields = [term.field(psi) for term in self.terms]
+        fields = [term.field(psi, t) for term in self.terms]
         psi = self._apply_terms(psi, fields, half)
 
         # --- full step in momentum space ---
@@ -161,7 +161,7 @@ class Evolution(ABC):
 
         # --- second half step in position space ---
         psi = psi * exp_V
-        fields = [term.field(psi) for term in self.terms]
+        fields = [term.field(psi, t) for term in self.terms]
         psi = self._apply_terms(psi, fields, half)
 
         return psi, energies

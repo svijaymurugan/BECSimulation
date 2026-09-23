@@ -119,7 +119,7 @@ def save_run(directory, cfg, grid, recorder, *, description="",
 
     waist = recorder.waist()
     if waist is not None:
-        arrays["waist"] = waist.astype(np.float32)
+        arrays["waist"] = waist
 
     fxy, fxz = recorder.frames()
     if fxy is not None:
