@@ -59,17 +59,21 @@ class QuadrupoleTerm(InteractionTerm):
 
 
 class RampedTerm(InteractionTerm):
-    """Scales another term by  initial + (1 - initial) * ramp(t).
+    """Scales another term from `initial` to `final` along a ramp profile.
 
-    `initial` is the starting fraction of the full coupling (a02_initial / a02).
+    Both are fractions of the inner term's full strength. Ramping g2 up is
+    initial=a02_initial/a02, final=1; quenching g0 off is initial=1, final=0.
     With ramp=None the term is held at `initial` for good - that is what the
-    ground-state search uses. Composition: it never asks what it wraps, and it
-    keeps the inner term's name so recorder columns and legends are unchanged.
+    ground-state search uses.
+
+    It never asks what it wraps, and it keeps the inner term's name, so
+    recorder columns and plot legends are unchanged.
     """
 
     def __init__(self, inner: InteractionTerm, ramp: Ramp | None = None,
-                 initial: float = 0.0):
-        self.inner, self.ramp, self.initial = inner, ramp, initial
+                 initial: float = 0.0, final: float = 1.0):
+        self.inner, self.ramp = inner, ramp
+        self.initial, self.final = initial, final
         self.name = inner.name
 
     @property
@@ -79,12 +83,13 @@ class RampedTerm(InteractionTerm):
     def scale(self, t: float) -> float:
         if self.ramp is None:
             return self.initial
-        return self.initial + (1.0 - self.initial) * self.ramp(t)
+        return self.initial + (self.final - self.initial) * self.ramp(t)
 
     def field(self, psi, t=0.0):
         s = self.scale(t)
         if s == 0.0:
-            # skip the inner computation entirely - for g2 that saves an FFT pair
+            # skip the inner computation entirely - after a g0 quench, or
+            # before a g2 ramp that starts from zero
             return torch.zeros_like(psi.real)
         return s * self.inner.field(psi, t)
 
@@ -95,9 +100,10 @@ class RampedTerm(InteractionTerm):
 def make_terms(cfg, grid, cutoff, *, stage="real") -> list[InteractionTerm]:
     """Build the active terms for one stage of the simulation.
 
-    stage="imag": the ground-state search. A ramped g2 is held at its INITIAL
-        value (a02_initial), and left out entirely if that is zero.
-    stage="real": real-time evolution, with the ramp applied if configured.
+    stage="imag": the ground-state search. g0 is always at full strength (the
+        quench happens in real time); a ramped g2 is held at its INITIAL value,
+        and left out entirely if that is zero.
+    stage="real": ramps and quenches applied.
 
     ORDER MATTERS for bit-exact reproduction: contact before quadrupole.
     """
@@ -105,17 +111,27 @@ def make_terms(cfg, grid, cutoff, *, stage="real") -> list[InteractionTerm]:
         raise ValueError(f"stage must be 'real' or 'imag', got {stage!r}")
 
     terms: list[InteractionTerm] = []
+
     if cfg.include_g0:
-        terms.append(ContactTerm(cfg.G0))
+        contact = ContactTerm(cfg.G0)
+        if stage == "real" and cfg.g0_ramp != "none":
+            terms.append(RampedTerm(
+                contact,
+                Ramp(cfg.g0_ramp, start=cfg.g0_ramp_start / cfg.tau,
+                     duration=cfg.g0_ramp_time / cfg.tau),
+                initial=1.0, final=cfg.g0_final))
+        else:
+            terms.append(contact)              # ITE always sees the full g0
 
     if cfg.include_g2 and cfg.a02 != 0.0:
         g2 = QuadrupoleTerm(cfg.G2, grid, cutoff)
+        f0 = cfg.a02_initial / cfg.a02
         if cfg.g2_ramp == "none":
             terms.append(g2)
-        else:
-            f0 = cfg.a02_initial / cfg.a02          # G2 is linear in a02
-            if stage == "real":
-                terms.append(RampedTerm(g2, Ramp.from_config(cfg), initial=f0))
-            elif f0 != 0.0:
-                terms.append(RampedTerm(g2, None, initial=f0))
+        elif stage == "real":
+            terms.append(RampedTerm(g2, Ramp.from_config(cfg),
+                                    initial=f0, final=1.0))
+        elif f0 != 0.0:
+            terms.append(RampedTerm(g2, None, initial=f0))
+
     return terms

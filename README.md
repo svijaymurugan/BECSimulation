@@ -1,3 +1,8 @@
+Day to day: every new terminal needs source .venv/bin/activate before you work. deactivate leaves. If you use Jupyter locally, run python -m ipykernel install --user --name becsim once, then pick the "becsim" kernel. Colab doesn't use any of this; it has its own preinstalled environment.
+
+If you'd rather stay in conda, conda create -n becsim python=3.11, conda activate becsim, then pip install -r requirements.txt does the same job. Just pick one approach and don't mix them.
+
+
 
 Split-step GPE simulation for a trapped BEC with contact (g0) and quadrupole (g2)
 interactions. Real-time evolution, imaginary-time ground states, and a diagnostic

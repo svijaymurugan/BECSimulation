@@ -61,6 +61,12 @@ class SimulationConfig:
     g2_ramp_time: float = 0.0      # s, duration (time constant for "exponential")
     a02_initial: float = 0.0       # m^3, a02 before the ramp (0 = g2 off)
 
+    # --- g0 quench/ramp (real time only; the ground state always uses full g0) ---
+    g0_ramp: str = "none"          # one of ramps.RAMP_KINDS
+    g0_ramp_start: float = 0.0     # s, when the quench/ramp happens
+    g0_ramp_time: float = 0.0      # s, duration (0 for a quench)
+    g0_final: float = 0.0          # fraction of g0 remaining afterwards
+
     # --- run control ---
     init_type: str = "Ground State"
     plot_fraction: float = 1 # NOTE: at the moment this has no functionality. We are just saving frames when we measure energy. If we want distinct recording frequencies for energy and plotting, we can use this.
@@ -190,6 +196,15 @@ class SimulationConfig:
             bad.append(f"a02_initial must lie between 0 and a02 "
                        f"(got {self.a02_initial:g}, a02 = {self.a02:g})")
 
+        if self.g0_ramp not in RAMP_KINDS:
+            bad.append(f"g0_ramp must be one of {RAMP_KINDS}, got {self.g0_ramp!r}")
+        elif self.g0_ramp not in ("none", "quench") and self.g0_ramp_time <= 0:
+            bad.append(f"g0_ramp={self.g0_ramp!r} needs g0_ramp_time > 0")
+        if not 0.0 <= self.g0_final <= 1.0:
+            bad.append(f"g0_final must be in [0, 1], got {self.g0_final}")
+        if self.g0_ramp != "none" and not self.include_g0:
+            bad.append("g0_ramp is set but include_g0 is False - nothing to quench")
+
         if bad:
             raise ValueError("Invalid SimulationConfig:\n  - " + "\n  - ".join(bad))
 
@@ -289,6 +304,9 @@ class SimulationConfig:
                          f"a02 {self.a02_initial:.3g} -> {self.a02:.3g} m^3, "
                          f"start {self.g2_ramp_start * 1e3:.3g} ms, "
                          f"duration {self.g2_ramp_time * 1e3:.3g} ms"))
+        if self.g0_ramp != "none":
+            L.append(row("g0 quench", self.g0_ramp, "",
+                         f"1 -> {self.g0_final:g} at {self.g0_ramp_start * 1e3:g} ms"))
         L.append(row("precision", "float64" if self.high_precision else "float32"))
         if self.cutoff_kc is not None:
             L.append(row("cutoff", self.cutoff, "",
