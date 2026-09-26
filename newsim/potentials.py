@@ -67,12 +67,37 @@ class BoxPotential(Potential):
     def __call__(self, t):
         return self._V
 
+class GammaModulatedTrap(Potential):
+    """Harmonic trap whose z anisotropy is modulated:
+        gamma(t) = gamma0 * (1 + A sin(w t)),  V = 1/2 (x^2 + y^2 + gamma(t)^2 z^2)
+
+    Unlike ModulatedHarmonicTrap, which scales the WHOLE trap (isotropic, so it
+    parametrically drives only the monopole at 2*sqrt(5) omega), this changes z
+    relative to x and y. The perturbation contains a quadrupole piece, so it
+    drives the l=2 mode DIRECTLY - a linear drive, resonant at sqrt(2) omega.
+    """
+
+    def __init__(self, grid, gamma, amp, freq):
+        self.gamma, self.amp, self.freq = gamma, amp, freq
+        self._Vxy = 0.5 * (grid.ux3**2 + grid.uy3**2)
+        self._Vz = 0.5 * grid.uz3**2
+
+    @property
+    def is_static(self) -> bool:
+        return self.amp == 0.0
+
+    def __call__(self, t):
+        g = self.gamma * (1.0 + self.amp * math.sin(self.freq * t))
+        return self._Vxy + (g * g) * self._Vz
+
 
 def make_potential(cfg, grid, gamma) -> Potential:
     """Build the trap for one evolution. `gamma` is passed explicitly so that
-    imaginary time can use a different anisotropy without a special parameter
-    threaded through two classes."""
-    trap = HarmonicTrap(grid, gamma)
+    imaginary time can use a different anisotropy."""
+    if cfg.gamma_mod_amp != 0.0:
+        trap = GammaModulatedTrap(grid, gamma, cfg.gamma_mod_amp, cfg.gamma_mod_freq)
+    else:
+        trap = HarmonicTrap(grid, gamma)
     if cfg.modulation_amp == 0.0:
         return trap
     return ModulatedHarmonicTrap(trap, cfg.modulation_amp, cfg.modulation_freq)

@@ -67,6 +67,9 @@ class SimulationConfig:
     g0_ramp_time: float = 0.0      # s, duration (0 for a quench)
     g0_final: float = 0.0          # fraction of g0 remaining afterwards
 
+    gamma_mod_amp: float = 0.0     # modulates gamma itself: drives the l=2 mode
+    gamma_mod_freq: float = 0.0    # unitless (units of omega); sqrt(2) is quadrupole resonance
+
     # --- run control ---
     init_type: str = "Ground State"
     plot_fraction: float = 1 # NOTE: at the moment this has no functionality. We are just saving frames when we measure energy. If we want distinct recording frequencies for energy and plotting, we can use this.
@@ -204,6 +207,11 @@ class SimulationConfig:
             bad.append(f"g0_final must be in [0, 1], got {self.g0_final}")
         if self.g0_ramp != "none" and not self.include_g0:
             bad.append("g0_ramp is set but include_g0 is False - nothing to quench")
+
+        if self.gamma_mod_amp < 0:
+            bad.append(f"gamma_mod_amp must be >= 0, got {self.gamma_mod_amp}")
+        if self.gamma_mod_amp != 0.0 and self.gamma_mod_freq <= 0:
+            bad.append("gamma_mod_amp is set but gamma_mod_freq is not")
 
         if bad:
             raise ValueError("Invalid SimulationConfig:\n  - " + "\n  - ".join(bad))
