@@ -76,6 +76,17 @@ class SimulationConfig:
     track_waist: bool = False
     track_modes: bool = False
 
+    # --- trap geometry: "harmonic" or "box" ---
+    trap_kind: str = "harmonic"
+    box_L_perp: float = 4.0        # box half-length in x, y (units of l)
+    box_L_z: float = 4.0           # box half-length in z (units of l)
+    box_height: float = 200.0      # wall height (hbar*omega)
+    box_width: float = 0.0         # wall width (units of l); 0 = 2*dx
+    box_squeeze: str = "none"      # ramp kind for shrinking the walls
+    box_squeeze_start: float = 0.0 # s
+    box_squeeze_time: float = 0.0  # s
+    box_squeeze_to: float = 1.0    # final box size as a fraction of the initial
+
     @property
     def nz(self) -> int:
         return self.N if self.Nz is None else self.Nz
@@ -213,6 +224,17 @@ class SimulationConfig:
         if self.gamma_mod_amp != 0.0 and self.gamma_mod_freq <= 0:
             bad.append("gamma_mod_amp is set but gamma_mod_freq is not")
 
+        if self.trap_kind not in ("harmonic", "box"):
+            bad.append(f"trap_kind must be 'harmonic' or 'box', got {self.trap_kind!r}")
+        if self.trap_kind == "box":
+            for nm in ("box_L_perp", "box_L_z", "box_height"):
+                if getattr(self, nm) <= 0:
+                    bad.append(f"{nm} must be positive")
+            if self.box_squeeze not in RAMP_KINDS:
+                bad.append(f"box_squeeze must be one of {RAMP_KINDS}")
+            if not 0 < self.box_squeeze_to <= 1:
+                bad.append(f"box_squeeze_to must be in (0, 1], got {self.box_squeeze_to}")
+
         if bad:
             raise ValueError("Invalid SimulationConfig:\n  - " + "\n  - ".join(bad))
 
@@ -228,6 +250,9 @@ class SimulationConfig:
         payload = {k: getattr(self, k) for k in self.GROUND_STATE_FIELDS}
         payload["N"]  = self.N
         payload["nz"] = self.nz          # RESOLVED, not the Nz shorthand
+        if self.trap_kind != "harmonic":
+            payload["box"] = (self.trap_kind, self.box_L_perp, self.box_L_z,
+                              self.box_height, self.box_width)
         if self.g2_ramp != "none":
             payload["a02_ground_state"] = self.a02_initial
         blob = json.dumps(payload, sort_keys=True)

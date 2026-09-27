@@ -9,6 +9,7 @@ import math
 from abc import ABC, abstractmethod
 
 import torch
+from ramps import Ramp
 
 
 class Potential(ABC):
@@ -51,21 +52,40 @@ class ModulatedHarmonicTrap(Potential):
         return self.inner(t) * (1.0 + self.amp * math.sin(self.freq * t))**2
 
 class BoxPotential(Potential):
-    """A box potential with hard walls at |x|, |y|, |z| = L/2.
-    
-    TODO: BoxPotential is broken: self._V[grid.ux3.abs() > 0.5] = inf indexes a (N,N,nz) tensor with an (N,1,1) mask, 
-    and inf in the exponent gives NaN. Build it by broadcasting and use a large finite wall, or delete it — nothing constructs it.
-    
+    """Smooth-walled rectangular box, optionally squeezed in time.
+
+        V = height * [ s(|x| - L_perp) + s(|y| - L_perp) + s(|z| - L_z) ]
+        with s(u) = sigmoid(u / width)
+
+    A hard wall would need infinite height (exp(-inf) -> NaN) and would put a
+    step on the grid; the Gibbs ringing from a step lives at high k, which is
+    exactly where g2 is most sensitive. A sigmoid wall a couple of grid points
+    wide is finite, resolved, and still steep compared with the healing length.
     """
 
-    def __init__(self, grid):
-        self._V = torch.zeros(grid.shape, dtype=grid.real_dtype, device=grid.device)
-        self._V[grid.ux3.abs() > 0.5] = float('inf')
-        self._V[grid.uy3.abs() > 0.5] = float('inf')
-        self._V[grid.uz3.abs() > 0.5] = float('inf')
+    def __init__(self, grid, L_perp, L_z, height=200.0, width=0.0,
+                 ramp=None, squeeze_to=1.0):
+        self.grid = grid
+        self.L_perp, self.L_z, self.height = L_perp, L_z, height
+        self.width = width if width > 0 else 2 * grid.dxu
+        self.ramp, self.squeeze_to = ramp, squeeze_to
+        self._static = None if ramp is not None else self._build(1.0)
+
+    def _build(self, s):
+        g, w = self.grid, self.width
+        def wall(u, L):
+            return torch.sigmoid((torch.abs(u) - s * L) / w)
+        return self.height * (wall(g.ux3, self.L_perp) + wall(g.uy3, self.L_perp)
+                              + wall(g.uz3, self.L_z))
+
+    @property
+    def is_static(self) -> bool:
+        return self.ramp is None
 
     def __call__(self, t):
-        return self._V
+        if self._static is not None:
+            return self._static
+        return self._build(1.0 + (self.squeeze_to - 1.0) * self.ramp(t))
 
 class GammaModulatedTrap(Potential):
     """Harmonic trap whose z anisotropy is modulated:
@@ -92,8 +112,15 @@ class GammaModulatedTrap(Potential):
 
 
 def make_potential(cfg, grid, gamma) -> Potential:
-    """Build the trap for one evolution. `gamma` is passed explicitly so that
-    imaginary time can use a different anisotropy."""
+    """Build the trap for one evolution."""
+    if cfg.trap_kind == "box":
+        ramp = None
+        if cfg.box_squeeze != "none":
+            ramp = Ramp(cfg.box_squeeze, start=cfg.box_squeeze_start / cfg.tau,
+                        duration=cfg.box_squeeze_time / cfg.tau)
+        return BoxPotential(grid, cfg.box_L_perp, cfg.box_L_z, cfg.box_height,
+                            cfg.box_width, ramp=ramp, squeeze_to=cfg.box_squeeze_to)
+
     if cfg.gamma_mod_amp != 0.0:
         trap = GammaModulatedTrap(grid, gamma, cfg.gamma_mod_amp, cfg.gamma_mod_freq)
     else:
