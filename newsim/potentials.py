@@ -110,9 +110,24 @@ class GammaModulatedTrap(Potential):
         g = self.gamma * (1.0 + self.amp * math.sin(self.freq * t))
         return self._Vxy + (g * g) * self._Vz
 
+class ZeroPotential(Potential):
+    """No external potential: a periodic cell. With V = 0 a uniform psi is an
+    EXACT eigenstate, so a uniform gas needs no ground-state search at all -
+    and the Bogoliubov dispersion applies exactly, with no Thomas-Fermi or
+    local-density approximation anywhere.
+    """
+
+    def __init__(self, grid):
+        self._V = torch.zeros((1, 1, 1), dtype=grid.real_dtype, device=grid.device)
+
+    def __call__(self, t):
+        return self._V
+
 
 def make_potential(cfg, grid, gamma) -> Potential:
     """Build the trap for one evolution."""
+    if cfg.trap_kind == "none":
+        return ZeroPotential(grid)    
     if cfg.trap_kind == "box":
         ramp = None
         if cfg.box_squeeze != "none":

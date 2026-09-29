@@ -127,6 +127,12 @@ def save_run(directory, cfg, grid, recorder, *, description="",
         arrays["frames_xz"] = fxz.astype(np.float32)
         arrays['frame_times'] = recorder.frame_times().astype(np.float32)
 
+    
+    probes = recorder.probes()
+    if probes is not None:
+        arrays["probes"] = probes                              # complex128, full precision
+        arrays["probe_indices"] = np.asarray(recorder.probe_indices)
+
     if psi_initial is not None:
         arrays["psi_initial"] = np.asarray(psi_initial)
     if psi_final is not None:

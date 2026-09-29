@@ -235,6 +235,10 @@ class SimulationConfig:
             if not 0 < self.box_squeeze_to <= 1:
                 bad.append(f"box_squeeze_to must be in (0, 1], got {self.box_squeeze_to}")
 
+        if self.trap_kind not in ("harmonic", "box", "none"):
+            bad.append(f"trap_kind must be 'harmonic', 'box' or 'none', "
+                       f"got {self.trap_kind!r}")
+
         if bad:
             raise ValueError("Invalid SimulationConfig:\n  - " + "\n  - ".join(bad))
 

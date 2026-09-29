@@ -140,6 +140,9 @@ class Evolution(ABC):
             del density, meas_fields, psi_k_meas
             self.recorder.record_waist(psi)
             self.recorder.record_frames(psi)
+        
+            self.recorder.record_modes(psi_k)
+            self.recorder.record_probe(psi_k)
 
         # --- first half step in position space ---
         psi = psi * exp_V

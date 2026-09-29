@@ -18,7 +18,7 @@ class Recorder:
     them at the end). This applies the same fix to the energies.
     """
 
-    def __init__(self, term_names, measure_every=1, frame_stride=10, dt=None, track_modes=False, track_waist=False, grid=None, track_frames=True):
+    def __init__(self, term_names, measure_every=1, frame_stride=10, dt=None, track_modes=False, track_waist=False, grid=None, track_frames=True, probe_indices=None):
         self.columns = ["kinetic", "potential", *term_names, "total"]
         self.track_modes = track_modes
         self.measure_every, self.track_frames = measure_every, track_frames
@@ -31,6 +31,8 @@ class Recorder:
         self._waist = []
         self.track_waist = track_waist
         self._grid = grid
+        self.probe_indices = list(probe_indices) if probe_indices else []
+        self._probe = []
 
     @classmethod
     def energies_only(cls, term_names, **kwargs):
@@ -100,6 +102,17 @@ class Recorder:
             return None, None
         return (torch.stack(self._frames_xy).cpu().numpy(),
                 torch.stack(self._frames_xz).cpu().numpy())
+
+    def record_probe(self, psi_k):
+        """Complex psi_k at a few chosen modes. Phases are the whole point:
+        a frequency shift of 1e-5 is invisible in |psi_k| but shows up as a
+        phase difference growing linearly in time."""
+        if not self.probe_indices:
+            return
+        self._probe.append(torch.stack(
+            [psi_k[i, j, k] for (i, j, k) in self.probe_indices]).detach())
+    def probes(self):
+        return torch.stack(self._probe).cpu().numpy() if self._probe else None
 
 class NormMonitor:
     """Real-time evolution is unitary. Warn if it stops being so."""
