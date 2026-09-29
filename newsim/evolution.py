@@ -140,9 +140,6 @@ class Evolution(ABC):
             del density, meas_fields, psi_k_meas
             self.recorder.record_waist(psi)
             self.recorder.record_frames(psi)
-        
-            self.recorder.record_modes(psi_k)
-            self.recorder.record_probe(psi_k)
 
         # --- first half step in position space ---
         psi = psi * exp_V
@@ -155,6 +152,7 @@ class Evolution(ABC):
 
         if measure:
             self.recorder.record_modes(psi_k)
+            self.recorder.record_probe(psi_k)
 
         psi_k = psi_k * exp_K
         #energies["kinetic"] = (torch.sum(self.KE * torch.abs(psi_k)**2)
