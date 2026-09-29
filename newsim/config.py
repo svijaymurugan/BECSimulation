@@ -224,8 +224,9 @@ class SimulationConfig:
         if self.gamma_mod_amp != 0.0 and self.gamma_mod_freq <= 0:
             bad.append("gamma_mod_amp is set but gamma_mod_freq is not")
 
-        if self.trap_kind not in ("harmonic", "box"):
-            bad.append(f"trap_kind must be 'harmonic' or 'box', got {self.trap_kind!r}")
+        if self.trap_kind not in ("harmonic", "box", "none"):
+            bad.append(f"trap_kind must be 'harmonic', 'box' or 'none', "
+                       f"got {self.trap_kind!r}")
         if self.trap_kind == "box":
             for nm in ("box_L_perp", "box_L_z", "box_height"):
                 if getattr(self, nm) <= 0:
@@ -235,9 +236,7 @@ class SimulationConfig:
             if not 0 < self.box_squeeze_to <= 1:
                 bad.append(f"box_squeeze_to must be in (0, 1], got {self.box_squeeze_to}")
 
-        if self.trap_kind not in ("harmonic", "box", "none"):
-            bad.append(f"trap_kind must be 'harmonic', 'box' or 'none', "
-                       f"got {self.trap_kind!r}")
+
 
         if bad:
             raise ValueError("Invalid SimulationConfig:\n  - " + "\n  - ".join(bad))
